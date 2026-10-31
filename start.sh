@@ -36,7 +36,7 @@ echo ""
 echo "🎨 [3/3] 启动前端服务 (Vue 3 + Element Plus)..."
 lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 cd "$PROJECT_ROOT/frontend"
-CI=true nohup node ./node_modules/vite/bin/vite.js --host > "$PROJECT_ROOT/frontend.log" 2>&1 &
+CI=true nohup node ./node_modules/vite/bin/vite.js --host < /dev/null > "$PROJECT_ROOT/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo "✅ 前端服务已在后台启动 (PID: $FRONTEND_PID, 地址: http://localhost:5173)"
 
