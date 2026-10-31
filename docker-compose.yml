@@ -1,0 +1,18 @@
+name: psi-system
+
+services:
+  sqldb:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: psi-sqlserver
+    restart: always
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=PsiAdmin@2026
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+
+volumes:
+  mssql_data:
