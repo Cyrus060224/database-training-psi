@@ -96,4 +96,27 @@ namespace Psi.Api.Models
         public string StatusName { get; set; } = string.Empty;
         public string OrderDate { get; set; } = string.Empty;
     }
+
+    // 供应商保存 DTO
+    public class SupplierSaveDto
+    {
+        public int SupplierId { get; set; }
+        public string SupplierCode { get; set; } = string.Empty;
+        public string SupplierName { get; set; } = string.Empty;
+        public string? ContactPerson { get; set; }
+        public string Phone { get; set; } = string.Empty;
+        public string? Address { get; set; }
+    }
+
+    // 客户保存 DTO
+    public class CustomerSaveDto
+    {
+        public int CustomerId { get; set; }
+        public string CustomerCode { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public string? ContactPerson { get; set; }
+        public string Phone { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public decimal CreditLimit { get; set; } = 0;
+    }
 }

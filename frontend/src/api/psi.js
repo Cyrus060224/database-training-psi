@@ -13,9 +13,14 @@ export const getCategoriesApi = () => request.get('/goods/categories')
 export const saveGoodsApi = (data) => request.post('/goods/save', data)
 export const deleteGoodsApi = (id) => request.delete(`/goods/${id}`)
 
-// 供应商与客户
+// 供应商与客户管理 (CRUD)
 export const getSuppliersApi = () => request.get('/partner/suppliers')
+export const saveSupplierApi = (data) => request.post('/partner/supplier/save', data)
+export const deleteSupplierApi = (id) => request.delete(`/partner/supplier/${id}`)
+
 export const getCustomersApi = () => request.get('/partner/customers')
+export const saveCustomerApi = (data) => request.post('/partner/customer/save', data)
+export const deleteCustomerApi = (id) => request.delete(`/partner/customer/${id}`)
 
 // 采购
 export const getPurchaseOrdersApi = (params) => request.get('/purchase/orders', { params })

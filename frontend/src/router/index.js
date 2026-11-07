@@ -17,31 +17,37 @@ const routes = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/Dashboard.vue'),
-        meta: { title: '系统首页看板', icon: 'Odometer' }
+        meta: { title: '系统总览大屏', icon: 'Odometer' }
       },
       {
         path: 'goods',
         name: 'Goods',
         component: () => import('../views/Goods.vue'),
-        meta: { title: '商品档案管理', icon: 'Goods' }
+        meta: { title: '商品主数据管理', icon: 'Goods' }
+      },
+      {
+        path: 'partners',
+        name: 'Partners',
+        component: () => import('../views/Partners.vue'),
+        meta: { title: '往来单位管理', icon: 'UserFilled' }
       },
       {
         path: 'purchase',
         name: 'Purchase',
         component: () => import('../views/Purchase.vue'),
-        meta: { title: '采购入库管理', icon: 'ShoppingCart' }
+        meta: { title: '采购制单与入库', icon: 'ShoppingCart' }
       },
       {
         path: 'sale',
         name: 'Sale',
         component: () => import('../views/Sale.vue'),
-        meta: { title: '销售出库管理', icon: 'Sell' }
+        meta: { title: '销售开单与出库', icon: 'Sell' }
       },
       {
         path: 'inventory',
         name: 'Inventory',
         component: () => import('../views/Inventory.vue'),
-        meta: { title: '库存与审计流水', icon: 'Box' }
+        meta: { title: '库存一览与流水审计', icon: 'Box' }
       }
     ]
   }

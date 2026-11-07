@@ -1,14 +1,15 @@
 <template>
-  <div class="goods-container">
-    <el-card shadow="never" class="table-card">
+  <div class="glass-page-container">
+    <div class="glass-card page-card">
       <!-- 搜索与筛选工具栏 -->
       <div class="filter-toolbar">
         <div class="left-filters">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="输入商品名称 / 编码搜索"
+            placeholder="商品名称 / 编码搜索"
             clearable
             style="width: 240px"
+            prefix-icon="Search"
             @keyup.enter="handleSearch"
           />
 
@@ -16,7 +17,7 @@
             v-model="queryParams.categoryId"
             placeholder="全部分类"
             clearable
-            style="width: 160px"
+            style="width: 150px"
             @change="handleSearch"
           >
             <el-option
@@ -27,43 +28,49 @@
             />
           </el-select>
 
-          <el-checkbox v-model="queryParams.alertOnly" label="⚠️ 仅看库存预警商品" @change="handleSearch" />
+          <el-checkbox v-model="queryParams.alertOnly" label="⚠️ 仅看紧缺商品" @change="handleSearch" />
 
-          <el-button type="primary" icon="Search" @click="handleSearch">查询</el-button>
-          <el-button icon="Refresh" @click="resetSearch">重置</el-button>
+          <el-button type="primary" class="action-btn" @click="handleSearch">筛选</el-button>
+          <el-button class="action-btn" @click="resetSearch">重置</el-button>
         </div>
 
         <div class="right-actions">
-          <el-button type="success" icon="Plus" @click="openDialog()">新增商品主数据</el-button>
+          <el-button type="primary" icon="Plus" class="action-btn-primary" @click="openDialog()">
+            录入新商品
+          </el-button>
         </div>
       </div>
 
       <!-- 数据表格 -->
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
-        <el-table-column prop="goodsCode" label="商品编码" width="130" />
-        <el-table-column prop="goodsName" label="商品名称" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="categoryName" label="类别" width="110">
+        <el-table-column prop="goodsCode" label="编码" width="130" />
+        <el-table-column prop="goodsName" label="商品名称" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag size="small">{{ row.categoryName }}</el-tag>
+            <strong>{{ row.goodsName }}</strong>
+          </template>
+        </el-table-column>
+        <el-table-column prop="categoryName" label="品类" width="110">
+          <template #default="{ row }">
+            <span class="category-pill">{{ row.categoryName }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="specification" label="规格型号" width="140" show-overflow-tooltip />
-        <el-table-column prop="costPrice" label="参考进价" width="100">
-          <template #default="{ row }">¥{{ row.costPrice }}</template>
+        <el-table-column prop="costPrice" label="进价(¥)" width="110">
+          <template #default="{ row }">¥{{ Number(row.costPrice).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="retailPrice" label="销售售价" width="100">
+        <el-table-column prop="retailPrice" label="售价(¥)" width="110">
           <template #default="{ row }">
-            <strong style="color: #67c23a;">¥{{ row.retailPrice }}</strong>
+            <strong style="color: #059669;">¥{{ Number(row.retailPrice).toFixed(2) }}</strong>
           </template>
         </el-table-column>
-        <el-table-column prop="currentStock" label="当前库存量" width="120">
+        <el-table-column prop="currentStock" label="当前库存" width="130">
           <template #default="{ row }">
-            <el-tag :type="row.isAlert ? 'danger' : 'info'" effect="dark">
+            <el-tag :type="row.isAlert ? 'danger' : 'success'" effect="light">
               {{ row.currentStock }} {{ row.unit }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="minStockAlert" label="最低安全库存" width="110">
+        <el-table-column prop="minStockAlert" label="安全底线" width="110">
           <template #default="{ row }">{{ row.minStockAlert }} {{ row.unit }}</template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
@@ -86,12 +93,12 @@
           @current-change="fetchList"
         />
       </div>
-    </el-card>
+    </div>
 
     <!-- 新增 / 编辑弹窗 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="formData.goodsId ? '编辑商品档案' : '新增商品主数据'"
+      :title="formData.goodsId ? '编辑商品档案' : '录入新商品档案'"
       width="560px"
       destroy-on-close
     >
@@ -301,8 +308,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.table-card {
-  border-radius: 8px;
+.glass-page-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-card {
+  padding: 24px;
 }
 
 .filter-toolbar {
@@ -311,7 +323,7 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .left-filters {
@@ -321,9 +333,17 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.category-pill {
+  background: rgba(241, 245, 249, 0.9);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
 .pagination-bar {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: 20px;
 }
 </style>

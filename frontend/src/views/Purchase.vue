@@ -1,36 +1,41 @@
 <template>
-  <div class="purchase-container">
-    <el-card shadow="never" class="table-card">
+  <div class="glass-page-container">
+    <div class="glass-card page-card">
       <div class="toolbar">
-        <div class="title">
-          <h3>📦 采购订单管理与验收入库</h3>
+        <div class="title-wrap">
+          <div class="title-dot dot-blue"></div>
+          <h3>采购订单流转与验收入库</h3>
         </div>
-        <el-button type="primary" icon="Plus" @click="openCreateDialog">
-          新建采购入库单
+        <el-button type="primary" icon="Plus" class="glass-action-btn" @click="openCreateDialog">
+          新建采购订单
         </el-button>
       </div>
 
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="orderNo" label="采购单号" width="160" />
-        <el-table-column prop="supplierName" label="供应商名称" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="purchaserName" label="采购制单人" width="110" />
-        <el-table-column prop="totalAmount" label="订单总金额" width="120">
+        <el-table-column prop="supplierName" label="供应商名称" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
-            <strong style="color: #409eff;">¥{{ row.totalAmount.toLocaleString() }}</strong>
+            <strong>{{ row.supplierName }}</strong>
           </template>
         </el-table-column>
-        <el-table-column prop="statusName" label="状态" width="100">
+        <el-table-column prop="purchaserName" label="制单采购员" width="120" />
+        <el-table-column prop="totalAmount" label="订单总金额" width="130">
           <template #default="{ row }">
-            <el-tag :type="row.orderStatus === 1 ? 'success' : 'warning'" effect="dark">
+            <strong style="color: #2563eb;">¥{{ Number(row.totalAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</strong>
+          </template>
+        </el-table-column>
+        <el-table-column prop="statusName" label="单据状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.orderStatus === 1 ? 'success' : 'warning'" effect="light">
               {{ row.statusName }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="keeperName" label="验收仓管员" width="110" />
+        <el-table-column prop="keeperName" label="验收仓管" width="110" />
         <el-table-column prop="orderDate" label="制单时间" width="160">
           <template #default="{ row }">{{ formatTime(row.orderDate) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="业务操作" width="170" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openDetailDialog(row.orderId)">查看明细</el-button>
             <el-button
@@ -55,10 +60,10 @@
           @current-change="fetchList"
         />
       </div>
-    </el-card>
+    </div>
 
     <!-- 新建采购单弹窗 -->
-    <el-dialog v-model="createVisible" title="创建新采购订单" width="700px" destroy-on-close>
+    <el-dialog v-model="createVisible" title="创建新采购订单" width="720px" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="选择供应商" required>
           <el-select v-model="formOrder.supplierId" placeholder="请选择供货商" style="width: 100%">
@@ -93,17 +98,17 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="单价(¥)" width="120">
+          <el-table-column label="进价(¥)" width="120">
             <template #default="{ row }">
               <el-input-number v-model="row.price" :min="0" :precision="2" size="small" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="数量" width="110">
+          <el-table-column label="采购数量" width="120">
             <template #default="{ row }">
               <el-input-number v-model="row.quantity" :min="1" size="small" style="width: 100%" />
             </template>
           </el-table-column>
-          <el-table-column label="小计(¥)" width="100">
+          <el-table-column label="小计(¥)" width="110">
             <template #default="{ row }">
               <strong>¥{{ (row.price * row.quantity).toFixed(2) }}</strong>
             </template>
@@ -127,24 +132,26 @@
     </el-dialog>
 
     <!-- 订单明细详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="采购单详情明细" width="650px">
+    <el-dialog v-model="detailVisible" title="采购入库单详情明细" width="680px">
       <el-descriptions border :column="2" v-if="orderDetail.order">
-        <el-descriptions-item label="单号">{{ orderDetail.order.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{ orderDetail.order.supplierName }}</el-descriptions-item>
-        <el-descriptions-item label="采购员">{{ orderDetail.order.purchaserName }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">¥{{ orderDetail.order.totalAmount }}</el-descriptions-item>
+        <el-descriptions-item label="采购单号">{{ orderDetail.order.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="供货企业">{{ orderDetail.order.supplierName }}</el-descriptions-item>
+        <el-descriptions-item label="制单专员">{{ orderDetail.order.purchaserName }}</el-descriptions-item>
+        <el-descriptions-item label="单据总额">
+          <strong style="color: #2563eb;">¥{{ orderDetail.order.totalAmount }}</strong>
+        </el-descriptions-item>
       </el-descriptions>
 
-      <el-table :data="orderDetail.details" stripe size="small" style="margin-top: 14px">
+      <el-table :data="orderDetail.details" stripe size="small" style="margin-top: 16px">
         <el-table-column prop="goodsName" label="商品名称" />
-        <el-table-column prop="specification" label="规格" width="120" />
-        <el-table-column prop="purchasePrice" label="进价" width="90">
+        <el-table-column prop="specification" label="规格型号" width="120" />
+        <el-table-column prop="purchasePrice" label="进价" width="100">
           <template #default="{ row }">¥{{ row.purchasePrice }}</template>
         </el-table-column>
-        <el-table-column prop="quantity" label="数量" width="80">
+        <el-table-column prop="quantity" label="数量" width="90">
           <template #default="{ row }">{{ row.quantity }} {{ row.unit }}</template>
         </el-table-column>
-        <el-table-column prop="subtotal" label="小计" width="90">
+        <el-table-column prop="subtotal" label="小计" width="100">
           <template #default="{ row }">¥{{ row.subtotal }}</template>
         </el-table-column>
       </el-table>
@@ -276,30 +283,66 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
-.table-card { border-radius: 8px; }
+.glass-page-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-card {
+  padding: 24px;
+}
+
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
-.toolbar h3 { margin: 0; font-size: 16px; color: #1a1a1a; }
-.pagination-bar { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+.title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot-blue { background-color: #3b82f6; box-shadow: 0 0 8px rgba(59, 130, 246, 0.6); }
+
+.toolbar h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 12px;
 }
+
 .total-bar {
   text-align: right;
   margin-top: 14px;
   font-size: 14px;
-  color: #606266;
+  color: #64748b;
 }
+
 .total-text {
   font-size: 18px;
-  color: #409eff;
-  font-weight: bold;
+  color: #2563eb;
+  font-weight: 700;
 }
 </style>
