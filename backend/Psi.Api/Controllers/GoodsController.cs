@@ -118,6 +118,17 @@ namespace Psi.Api.Controllers
                 return Ok(ApiResponse<string>.Fail("进价与售价必须大于或等于 0"));
             }
 
+            if (dto.MinStockAlert < 0 || dto.MaxStockAlert < dto.MinStockAlert)
+            {
+                return Ok(ApiResponse<string>.Fail("库存预警值无效：最高库存必须大于或等于最低库存且大于等于0"));
+            }
+
+            var categoryExists = await _context.BaseCategories.AnyAsync(c => c.CategoryId == dto.CategoryId);
+            if (!categoryExists)
+            {
+                return Ok(ApiResponse<string>.Fail("所选商品类别不存在"));
+            }
+
             if (dto.GoodsId == 0)
             {
                 // 新增商品

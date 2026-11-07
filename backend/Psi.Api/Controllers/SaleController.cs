@@ -103,6 +103,17 @@ namespace Psi.Api.Controllers
         [HttpPost("create")]
         public async Task<ActionResult<ApiResponse<string>>> CreateSaleOrder([FromBody] CreateSaleOrderDto dto)
         {
+            if (dto.CustomerId <= 0)
+            {
+                return Ok(ApiResponse<string>.Fail("客户信息无效"));
+            }
+
+            var customer = await _context.BaseCustomers.FindAsync(dto.CustomerId);
+            if (customer == null || customer.Status != 1)
+            {
+                return Ok(ApiResponse<string>.Fail("所选客户不存在或已注销停用"));
+            }
+
             if (dto.Items == null || dto.Items.Count == 0)
             {
                 return Ok(ApiResponse<string>.Fail("销售商品清单不能为空"));
@@ -112,7 +123,7 @@ namespace Psi.Api.Controllers
             int.TryParse(userIdStr, out var userId);
             if (userId == 0) userId = 1;
 
-            var orderNo = "XS" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            var orderNo = "XS" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
             decimal totalAmount = 0;
 
             var saleOrder = new SaleOrder
@@ -127,6 +138,25 @@ namespace Psi.Api.Controllers
 
             foreach (var item in dto.Items)
             {
+                if (item.GoodsId <= 0)
+                {
+                    return Ok(ApiResponse<string>.Fail("商品ID无效"));
+                }
+                if (item.Quantity <= 0)
+                {
+                    return Ok(ApiResponse<string>.Fail("商品销售数量必须大于 0"));
+                }
+                if (item.Price < 0)
+                {
+                    return Ok(ApiResponse<string>.Fail("商品销售单价不能小于 0"));
+                }
+
+                var goods = await _context.BaseGoods.FindAsync(item.GoodsId);
+                if (goods == null || goods.Status != 1)
+                {
+                    return Ok(ApiResponse<string>.Fail($"商品 (ID: {item.GoodsId}) 不存在或已下架停售"));
+                }
+
                 var subtotal = item.Price * item.Quantity;
                 totalAmount += subtotal;
                 saleOrder.Details.Add(new SaleOrderDetail
@@ -147,7 +177,7 @@ namespace Psi.Api.Controllers
         }
 
         // ====================================================================
-        // 答辩核心杀手锏：销售出库事务控制与并发防超卖（防负库存机制）
+        // 核心实训与答辩杀手锏：销售出库高并发原子扣减与防超卖机制（ACID + 行级排他更新）
         // ====================================================================
         [HttpPost("outbound/{id}")]
         public async Task<ActionResult<ApiResponse<string>>> ExecuteOutbound(int id)
@@ -156,7 +186,7 @@ namespace Psi.Api.Controllers
             int.TryParse(userIdStr, out var keeperId);
             if (keeperId == 0) keeperId = 1;
 
-            // 1. 开启数据库事务（ACID 保证）
+            // 1. 开启显式数据库事务（ACID 完整隔离）
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -174,29 +204,52 @@ namespace Psi.Api.Controllers
                     return Ok(ApiResponse<string>.Fail("该订单已出库或已作废，不可重复操作"));
                 }
 
-                // 2. 遍历校验库存并扣减
+                // 2. 状态原子流转与防并发重复提交
+                var affectedOrder = await _context.SaleOrders
+                    .Where(o => o.OrderId == id && o.OrderStatus == 0)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(o => o.OrderStatus, 1)
+                        .SetProperty(o => o.WarehouseKeeperId, keeperId)
+                        .SetProperty(o => o.OutboundDate, DateTime.Now));
+
+                if (affectedOrder == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return Ok(ApiResponse<string>.Fail("该单据已被其他操作员处理或作废，不可重复出库！"));
+                }
+
+                // 3. 遍历商品进行数据库行级原子扣减（超卖拦截关键点）
                 foreach (var detail in order.Details)
                 {
                     var goods = await _context.BaseGoods.FindAsync(detail.GoodsId);
                     var goodsName = goods?.GoodsName ?? $"商品ID:{detail.GoodsId}";
 
-                    var inventory = await _context.WmsInventories
-                        .FirstOrDefaultAsync(i => i.GoodsId == detail.GoodsId);
+                    // 利用 SQL 引擎行级排他锁原子检查库存并扣减：WHERE current_stock >= detail.Quantity
+                    var affectedInv = await _context.WmsInventories
+                        .Where(i => i.GoodsId == detail.GoodsId && i.CurrentStock >= detail.Quantity)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(i => i.CurrentStock, i => i.CurrentStock - detail.Quantity)
+                            .SetProperty(i => i.LastOutboundTime, DateTime.Now)
+                            .SetProperty(i => i.UpdatedTime, DateTime.Now));
 
-                    if (inventory == null || inventory.CurrentStock < detail.Quantity)
+                    if (affectedInv == 0)
                     {
-                        var currStock = inventory?.CurrentStock ?? 0;
+                        var currStock = await _context.WmsInventories
+                            .Where(i => i.GoodsId == detail.GoodsId)
+                            .Select(i => (int?)i.CurrentStock)
+                            .FirstOrDefaultAsync() ?? 0;
+
+                        // 核心：任一商品库存不足即整单原子回滚，不留残余脏数据与幽灵扣减
                         await transaction.RollbackAsync();
-                        return Ok(ApiResponse<string>.Fail($"出库受阻！商品【{goodsName}】当前库存仅剩 {currStock}，无法满足出库需求 {detail.Quantity} 件！事务已全部回滚。"));
+                        return Ok(ApiResponse<string>.Fail($"出库受阻！商品【{goodsName}】当前可用库存仅剩 {currStock} 件，无法满足销售需求 {detail.Quantity} 件！整单事务已全量回滚。"));
                     }
 
-                    int beforeStock = inventory.CurrentStock;
-                    int afterStock = beforeStock - detail.Quantity;
-
-                    // 原子更新，配合 SQL Server 约束防止并发负库存
-                    inventory.CurrentStock = afterStock;
-                    inventory.LastOutboundTime = DateTime.Now;
-                    inventory.UpdatedTime = DateTime.Now;
+                    // 查询当前扣减后库存用于写入精准审计流水
+                    var afterStock = await _context.WmsInventories
+                        .Where(i => i.GoodsId == detail.GoodsId)
+                        .Select(i => i.CurrentStock)
+                        .FirstOrDefaultAsync();
+                    var beforeStock = afterStock + detail.Quantity;
 
                     // 写入出库审计流水
                     var log = new WmsStockLog
@@ -213,15 +266,10 @@ namespace Psi.Api.Controllers
                     _context.WmsStockLogs.Add(log);
                 }
 
-                // 3. 更新主单据状态
-                order.OrderStatus = 1; // 已出库
-                order.WarehouseKeeperId = keeperId;
-                order.OutboundDate = DateTime.Now;
-
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return Ok(ApiResponse<string>.Success("销售出库审核完成，库存已扣减并生成流水"));
+                return Ok(ApiResponse<string>.Success("销售出库审核完成，库存已原子扣减并生成审计流水"));
             }
             catch (Exception ex)
             {

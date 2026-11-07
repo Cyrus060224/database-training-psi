@@ -128,6 +128,11 @@ namespace Psi.Api.Controllers
                 return Ok(ApiResponse<string>.Fail("客户名称不能为空"));
             }
 
+            if (dto.CreditLimit < 0)
+            {
+                return Ok(ApiResponse<string>.Fail("客户授信额度不能小于 0"));
+            }
+
             if (dto.CustomerId == 0)
             {
                 if (string.IsNullOrWhiteSpace(dto.CustomerCode))

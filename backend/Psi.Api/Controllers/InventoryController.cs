@@ -81,6 +81,7 @@ namespace Psi.Api.Controllers
                     select new
                     {
                         l.LogId,
+                        g.GoodsId,
                         g.GoodsCode,
                         g.GoodsName,
                         l.ChangeType,
@@ -95,7 +96,7 @@ namespace Psi.Api.Controllers
 
             if (goodsId.HasValue && goodsId.Value > 0)
             {
-                q = q.Where(x => x.GoodsCode == goodsId.ToString());
+                q = q.Where(x => x.GoodsId == goodsId.Value);
             }
 
             var total = await q.CountAsync();

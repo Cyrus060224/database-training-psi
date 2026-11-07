@@ -103,6 +103,17 @@ namespace Psi.Api.Controllers
         [HttpPost("create")]
         public async Task<ActionResult<ApiResponse<string>>> CreatePurchaseOrder([FromBody] CreatePurOrderDto dto)
         {
+            if (dto.SupplierId <= 0)
+            {
+                return Ok(ApiResponse<string>.Fail("供应商信息无效"));
+            }
+
+            var supplier = await _context.BaseSuppliers.FindAsync(dto.SupplierId);
+            if (supplier == null || supplier.Status != 1)
+            {
+                return Ok(ApiResponse<string>.Fail("所选供应商不存在或已停用"));
+            }
+
             if (dto.Items == null || dto.Items.Count == 0)
             {
                 return Ok(ApiResponse<string>.Fail("采购商品清单不能为空"));
@@ -112,7 +123,7 @@ namespace Psi.Api.Controllers
             int.TryParse(userIdStr, out var userId);
             if (userId == 0) userId = 1;
 
-            var orderNo = "CG" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            var orderNo = "CG" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
             decimal totalAmount = 0;
 
             var purOrder = new PurOrder
@@ -127,6 +138,25 @@ namespace Psi.Api.Controllers
 
             foreach (var item in dto.Items)
             {
+                if (item.GoodsId <= 0)
+                {
+                    return Ok(ApiResponse<string>.Fail("商品ID无效"));
+                }
+                if (item.Quantity <= 0)
+                {
+                    return Ok(ApiResponse<string>.Fail("采购数量必须大于 0"));
+                }
+                if (item.Price < 0)
+                {
+                    return Ok(ApiResponse<string>.Fail("采购进价不能小于 0"));
+                }
+
+                var goods = await _context.BaseGoods.FindAsync(item.GoodsId);
+                if (goods == null || goods.Status != 1)
+                {
+                    return Ok(ApiResponse<string>.Fail($"商品 (ID: {item.GoodsId}) 不存在或已停用"));
+                }
+
                 var subtotal = item.Price * item.Quantity;
                 totalAmount += subtotal;
                 purOrder.Details.Add(new PurOrderDetail
@@ -146,7 +176,7 @@ namespace Psi.Api.Controllers
             return Ok(ApiResponse<string>.Success(orderNo, "采购单创建成功，等待验收入库"));
         }
 
-        // 核心考核点：验收入库事务处理
+        // 核心考核点：验收入库事务处理与高并发防重入
         [HttpPost("inbound/{id}")]
         public async Task<ActionResult<ApiResponse<string>>> ExecuteInbound(int id)
         {
@@ -172,6 +202,20 @@ namespace Psi.Api.Controllers
                     return Ok(ApiResponse<string>.Fail("该单据已入库或已取消，不可重复操作"));
                 }
 
+                // 原子状态抢占流转，防止并发重复提交
+                var affected = await _context.PurOrders
+                    .Where(o => o.OrderId == id && o.OrderStatus == 0)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(o => o.OrderStatus, 1)
+                        .SetProperty(o => o.WarehouseKeeperId, keeperId)
+                        .SetProperty(o => o.InboundDate, DateTime.Now));
+
+                if (affected == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return Ok(ApiResponse<string>.Fail("该采购单已被其他操作员入库或取消，不可重复操作！"));
+                }
+
                 foreach (var detail in order.Details)
                 {
                     var inventory = await _context.WmsInventories
@@ -188,6 +232,8 @@ namespace Psi.Api.Controllers
                             UpdatedTime = DateTime.Now
                         };
                         _context.WmsInventories.Add(inventory);
+                        await _context.SaveChangesAsync();
+                        beforeStock = 0;
                     }
                     else
                     {
@@ -195,6 +241,7 @@ namespace Psi.Api.Controllers
                         inventory.CurrentStock += detail.Quantity;
                         inventory.LastInboundTime = DateTime.Now;
                         inventory.UpdatedTime = DateTime.Now;
+                        await _context.SaveChangesAsync();
                     }
 
                     // 写入库存变动流水日志
@@ -211,10 +258,6 @@ namespace Psi.Api.Controllers
                     };
                     _context.WmsStockLogs.Add(log);
                 }
-
-                order.OrderStatus = 1; // 已入库
-                order.WarehouseKeeperId = keeperId;
-                order.InboundDate = DateTime.Now;
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
